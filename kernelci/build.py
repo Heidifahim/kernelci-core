@@ -18,6 +18,7 @@
 import fnmatch
 import itertools
 import json
+import logging
 import os
 import platform
 import requests
@@ -561,12 +562,16 @@ def _kernel_config_enabled(dot_config, name):
     return shell_cmd('grep -cq CONFIG_{}=y {}'.format(name, dot_config), True)
 
 
-def build_kernel(build_env, kdir, arch, defconfig=None, jopt=None,
+def build_kernel(build_env, kdir, arch, kunit, kunit_json, defconfig=None, jopt=None,
                  verbose=False, output_path=None, mod_path=None):
     """Build a linux kernel
 
     *build_env* is a BuildEnvironment object
     *kdir* is the path to the kernel source directory
+    *kunit* runs KUnit tests under a specific config option (alltests,
+    defconfig, kunitconfig)
+    *kunit_json* specifies KUnit test result JSON filename, should not be
+    specified without --kunit
     *defconfig* is the name of the kernel defconfig
     *jopt* is the -j option to pass to make for parallel builds
     *verbose* is whether to print all the output of the make commands
@@ -685,6 +690,9 @@ def build_kernel(build_env, kdir, arch, defconfig=None, jopt=None,
     with open(os.path.join(output_path, 'bmeta.json'), 'w') as json_file:
         json.dump(bmeta, json_file, indent=4, sort_keys=True)
 
+    if kunit:
+        kunit_json = run_kunit_tests(kdir, kunit, kunit_json)
+        # TODO: add functionality using the generated KUnit JSON
     return result
 
 
@@ -933,3 +941,44 @@ def load_json(bmeta_json, dtbs_json):
     with open(dtbs_json) as json_file:
         dtbs = json.load(json_file)['dtbs']
     return bmeta, dtbs
+
+
+def run_kunit_tests(kdir, kunit, kunit_json):
+    """Run KUnit tests on a UML instance and return the results in a JSON file
+
+    The kunit_params dict keeps the information for the KUnit run command in
+    one place: the path to run KUnit, the test configurations,and the path to
+    theoutput JSON. This way if any of these values change, only this variable
+    needs to be modified.
+
+    *kdir* is the path to the kernel source directory
+    *kunit* specifies which tests to run: all kunit tests, or tests specified in
+    the default kunit config, or tests specified in the custom kunitconfig
+    *kunit_json* specifies the filename to store the KUnit test results JSON
+
+    The returned value is the filepath to the JSON holding the tests results
+    """
+    kunit_params = {
+        'run_path': os.path.realpath(
+                            os.path.join(kdir, 'tools/testing/kunit/kunit.py')),
+        'defconfig': '--defconfig',
+        'alltests': '--alltests',
+        'kunit_json': kunit_json,
+    }
+    kunit_config = '' if kunit == 'kunitconfig' else kunit_params[kunit]
+    run_cmd = "%s run --json=%s %s" % (kunit_params['run_path'],
+                                       kunit_params['kunit_json'],
+                                       kunit_config)
+    try:
+        if kunit == 'alltests':
+            shell_cmd(run_cmd, ret_code=True)
+        else:
+            print(shell_cmd(run_cmd, ret_code=False))
+        src = os.path.join(kdir, kunit_params['kunit_json'])
+        dest = os.path.join(os.path.dirname(__file__),
+                            kunit_params['kunit_json'])
+        shutil.copyfile(src, dest)
+        return dest
+    except Exception:
+        logging.error("KUnit error: ensure that KUnit tool is in the "
+                      "correct directory at %s/tools/testing/kunit/.")

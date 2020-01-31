@@ -252,15 +252,15 @@ class cmd_list_kernel_configs(Command):
 
 class cmd_build_kernel(Command):
     help = "Build a kernel"
-    args = [Args.build_env, Args.arch, Args.kdir]
+    args = [Args.build_env, Args.arch, Args.kdir, Args.kunit, Args.kunit_json]
     opt_args = [Args.defconfig, Args.j, Args.verbose, Args.output,
                 Args.mod_path]
 
     def __call__(self, configs, args):
         build_env = configs['build_environments'][args.build_env]
         return kernelci.build.build_kernel(
-            build_env, args.kdir, args.arch, args.defconfig, args.j,
-            args.verbose, args.output, args.mod_path)
+            build_env, args.kdir, args.arch, args.kunit, args.kunit_json,
+            args.defconfig, args.j,args.verbose, args.output, args.mod_path)
 
 
 class cmd_install_kernel(Command):

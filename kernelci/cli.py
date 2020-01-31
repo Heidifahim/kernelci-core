@@ -246,6 +246,21 @@ class Args(object):
         'help': "Path to the debos files",
     }
 
+    kunit = {
+        'name': '--kunit',
+        'nargs': '?',
+        'help':
+        "Run KUnit tests for UML, specifying if the def kunit config,"
+        "custom kunitconfig, or all tests should be ran",
+        'choices': ['alltests', 'defconfig', 'kunitconfig'],
+        'const': 'kunitconfig'
+    }
+
+    kunit_json = {
+        'name': '--kunit_json',
+        'help': "Filename to store KUnit test results JSON",
+    }
+
 
 class Command(object):
     """A command helper class.
